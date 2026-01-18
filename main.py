@@ -71,7 +71,7 @@ class BusinessClient(Base):
     client_name = Column(String(255), nullable=False)
     bot_token = Column(String(255), nullable=False, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    client_metadata = Column(JSON, nullable=True)
 
 
 class TelegramMessenger:
@@ -531,7 +531,7 @@ class TelegramMessenger:
 # Example usage
 async def main():
     # Your bot token from @BotFather
-    BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # Replace with your actual token
+    BOT_TOKEN = ""
 
     # Initialize the bot
     bot = TelegramMessenger()
