@@ -1,3 +1,5 @@
 .qodo/
 .idea/
 *.db
+
+.env
