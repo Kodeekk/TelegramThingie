@@ -5,7 +5,11 @@ from typing import Any, Dict, Optional
 class ChannelBot(ABC):
     @abstractmethod
     async def send_message(
-        self, chat_id: str, message: str, session_id: Optional[int] = None
+        self,
+        chat_id: str,
+        message: str,
+        session_id: Optional[int] = None,
+        reply_markup: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         raise NotImplementedError
 

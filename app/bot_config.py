@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -25,37 +24,36 @@ def _normalize_path(path: str) -> str:
 
 
 def load_bot_configs(settings: Settings) -> List[BotConfig]:
-    default_secret = os.getenv("WEBHOOK_SECRET_TOKEN", settings.webhook_secret_token)
-    path_prefix = os.getenv("WEBHOOK_PATH_PREFIX", settings.webhook_path_prefix)
-    default_path = os.getenv("WEBHOOK_PATH", "/telegram/webhook")
     configs: List[BotConfig] = []
 
-    tokens_env = os.getenv("BOT_TOKENS")
-    if tokens_env:
-        tokens = [token.strip() for token in tokens_env.split(",") if token.strip()]
-        names_env = os.getenv("BOT_NAMES")
-        names = [name.strip() for name in names_env.split(",")] if names_env else []
-        for index, token in enumerate(tokens):
-            name = names[index] if index < len(names) and names[index] else f"bot{index + 1}"
-            path = f"{path_prefix}/{name}"
-            configs.append(
-                BotConfig(
-                    name=name,
-                    token=token,
-                    webhook_path=_normalize_path(path),
-                    secret_token=default_secret or "",
-                )
-            )
+    if not settings.bot_tokens:
         return configs
 
-    token = os.getenv("BOT_TOKEN")
-    if token:
+    # If it's a single bot and BOT_TOKEN was used, we might want to use WEBHOOK_PATH
+    if len(settings.bot_tokens) == 1 and (not settings.bot_names or settings.bot_names[0] == "default"):
         configs.append(
             BotConfig(
-                name="default",
+                name=settings.bot_names[0] if settings.bot_names else "default",
+                token=settings.bot_tokens[0],
+                webhook_path=_normalize_path(settings.webhook_path),
+                secret_token=settings.webhook_secret_token or "",
+            )
+        )
+        return configs
+
+    for index, token in enumerate(settings.bot_tokens):
+        name = (
+            settings.bot_names[index]
+            if index < len(settings.bot_names) and settings.bot_names[index]
+            else f"bot{index + 1}"
+        )
+        path = f"{settings.webhook_path_prefix}/{name}"
+        configs.append(
+            BotConfig(
+                name=name,
                 token=token,
-                webhook_path=_normalize_path(default_path),
-                secret_token=default_secret or "",
+                webhook_path=_normalize_path(path),
+                secret_token=settings.webhook_secret_token or "",
             )
         )
     return configs

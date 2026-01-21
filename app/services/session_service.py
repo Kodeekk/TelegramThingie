@@ -18,13 +18,11 @@ class SessionService:
             return self.active_sessions[cache_key]
 
         async with self.session_factory() as db_session:
-            recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
-
             result = await db_session.execute(
                 select(Session)
                 .where(Session.bot_id == bot_id)
                 .where(Session.chat_id == chat_id)
-                .where(Session.updated_at >= recent_time)
+                .where(Session.status.in_(["waiting", "active"]))
                 .order_by(Session.updated_at.desc())
             )
             session = result.scalar_one_or_none()
@@ -33,7 +31,11 @@ class SessionService:
                 session_id = session.session_id
             else:
                 new_session = Session(
-                    bot_id=bot_id, chat_id=chat_id, messages_ai=[], messages_client=[]
+                    bot_id=bot_id,
+                    chat_id=chat_id,
+                    messages_ai=[],
+                    messages_client=[],
+                    status="waiting",
                 )
                 db_session.add(new_session)
                 await db_session.commit()
@@ -42,6 +44,78 @@ class SessionService:
 
             self.active_sessions[cache_key] = session_id
             return session_id
+
+    async def get_active_session_by_chat_id(
+        self, bot_id: str, chat_id: str
+    ) -> Optional[Session]:
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session)
+                .where(Session.bot_id == bot_id)
+                .where(Session.chat_id == chat_id)
+                .where(Session.status.in_(["waiting", "active"]))
+                .order_by(Session.updated_at.desc())
+            )
+            return result.scalar_one_or_none()
+
+    async def get_active_session_by_manager_id(
+        self, bot_id: str, manager_id: str
+    ) -> Optional[Session]:
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session)
+                .where(Session.bot_id == bot_id)
+                .where(Session.manager_id == manager_id)
+                .where(Session.status == "active")
+                .order_by(Session.updated_at.desc())
+            )
+            return result.scalar_one_or_none()
+
+    async def get_free_managers(
+        self, bot_id: str, manager_ids: List[str]
+    ) -> List[str]:
+        """Find managers from the list who don't have active sessions in this bot."""
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session.manager_id)
+                .where(Session.bot_id == bot_id)
+                .where(Session.status == "active")
+                .where(Session.manager_id.in_(manager_ids))
+            )
+            busy_managers = {row[0] for row in result.all() if row[0]}
+            return [m for m in manager_ids if m not in busy_managers]
+
+    async def accept_session(self, session_id: int, manager_id: str) -> bool:
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session).where(Session.session_id == session_id)
+            )
+            session = result.scalar_one_or_none()
+            if session and session.status == "waiting":
+                session.status = "active"
+                session.manager_id = manager_id
+                session.updated_at = datetime.now(timezone.utc)
+                await db_session.commit()
+                return True
+            return False
+
+    async def close_session(self, session_id: int) -> bool:
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session).where(Session.session_id == session_id)
+            )
+            session = result.scalar_one_or_none()
+            if session and session.status == "active":
+                session.status = "closed"
+                session.updated_at = datetime.now(timezone.utc)
+                await db_session.commit()
+
+                cache_key = (session.bot_id, session.chat_id)
+                if cache_key in self.active_sessions:
+                    del self.active_sessions[cache_key]
+
+                return True
+            return False
 
     async def add_message_to_session(
         self,

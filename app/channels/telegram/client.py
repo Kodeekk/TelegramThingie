@@ -8,9 +8,26 @@ class TelegramClient:
         self.bot_token = bot_token
         self.timeout_s = timeout_s
 
-    async def send_message(self, chat_id: str, text: str) -> Dict[str, Any]:
+    async def send_message(
+        self, chat_id: str, text: str, reply_markup: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def answer_callback_query(
+        self, callback_query_id: str, text: Optional[str] = None
+    ) -> Dict[str, Any]:
+        url = f"https://api.telegram.org/bot{self.bot_token}/answerCallbackQuery"
+        payload = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
 
         async with httpx.AsyncClient(timeout=self.timeout_s) as client:
             response = await client.post(url, json=payload)

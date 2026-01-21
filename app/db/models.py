@@ -17,6 +17,8 @@ class Session(Base):
     context_id = Column(String(100), nullable=True)
     messages_ai = Column(JSON, nullable=True)
     messages_client = Column(JSON, nullable=True)
+    status = Column(String(20), default="waiting", nullable=False)
+    manager_id = Column(String(50), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
