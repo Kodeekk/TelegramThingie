@@ -14,12 +14,10 @@ from app.webhook_server import WebhookServer
 
 def _validate_config(bots, settings: Settings) -> bool:
     if not bots:
-        print("[Config] No bots configured. Set BOT_TOKEN or BOT_TOKENS.")
+        settings.logger.info("No bots configured. Set BOT_TOKEN or BOT_TOKENS.")
         return False
     if not settings.webhook_url and not settings.webhook_base_url:
-        print(
-            "[Config] WEBHOOK_BASE_URL is empty. Set it in environment or in app/config.py"
-        )
+        settings.logger.info("WEBHOOK_BASE_URL is empty. Set it in environment or in app/config.py")
         return False
     return True
 
@@ -89,10 +87,10 @@ async def _register_bot(
         drop_pending_updates=settings.webhook_drop_pending_updates,
         allowed_updates=settings.webhook_allowed_updates,
     )
-    print(f"[Webhook] setWebhook for {bot_cfg.name}: {webhook_result}")
+    WebhookServer.logger.info(f"setWebhook for {bot_cfg.name}: {webhook_result}")
     if not webhook_result.get("ok"):
         raise RuntimeError(
-            "[Webhook] Registration failed. Check URL, token, and HTTPS setup."
+            WebhookServer.logger.format_error("Registration failed. Check URL, token, and HTTPS setup.")
         )
 
     return bot_webhook_path, bot_cfg.name
@@ -108,7 +106,7 @@ async def main() -> None:
 
     db = Database(settings.database_url, echo=settings.echo)
     await db.initialize()
-    print("[DB] Database initialized")
+    db.logger.info("Database initialized")
 
     session_service = SessionService(db.session_factory)
 
@@ -137,14 +135,14 @@ async def main() -> None:
             routes.append(route)
 
         server.start()
-        print(f"[Webhook] Listening on http://{settings.webhook_host}:{settings.webhook_port}")
+        WebhookServer.logger.info(f"Listening on http://{settings.webhook_host}:{settings.webhook_port}")
         for path, name in routes:
-            print(f"[Webhook] Route ready: {path} ({name})")
+            WebhookServer.logger.info(f"Route ready: {path} ({name})")
         await asyncio.Event().wait()
     except (KeyboardInterrupt, asyncio.CancelledError):
-        print("[Webhook] Stopped by user")
+        WebhookServer.logger.info("Stopped by user")
     except RuntimeError as e:
-        print(str(e))
+        WebhookServer.logger.format_error(str(e))
     finally:
         if server:
             try:

@@ -6,6 +6,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Awaitable, Callable, Dict, Optional
 from urllib.parse import urlparse
 
+from app.utils import Logger
+
 
 @dataclass
 class Route:
@@ -14,6 +16,8 @@ class Route:
 
 
 class WebhookServer:
+    logger = Logger("WebhookServer")
+
     def __init__(
         self,
         host: str,
@@ -82,7 +86,7 @@ class WebhookServer:
                 self.send_response(200)
                 self.end_headers()
 
-            def log_message(self, format, *args) -> None:  # noqa: A003
+            def log_message(self, format, *args) -> None:
                 return
 
         self._server = ThreadingHTTPServer((self.host, self.port), Handler)

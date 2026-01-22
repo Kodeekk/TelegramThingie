@@ -50,10 +50,7 @@ def load_bot_configs(settings: Settings) -> List[BotConfig]:
             else f"bot{index + 1}"
         )
         path = f"{settings.webhook_path_prefix}/{name}"
-        
-        # Получаем список менеджеров для этого бота
-        # Если индекс выходит за пределы settings.manager_ids, берем пустой список или последний доступный?
-        # По заданию: managers_ids=[123,321], [555,444] для bot1, bot2
+
         bot_manager_ids = (
             settings.manager_ids[index]
             if index < len(settings.manager_ids)

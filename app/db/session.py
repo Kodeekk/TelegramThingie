@@ -1,9 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base
-
+from app.utils import Logger
 
 class Database:
+
+    logger = Logger("Database")
+
     def __init__(self, database_url: str, echo: bool = False) -> None:
         self.engine = create_async_engine(database_url, echo=echo, future=True)
         self.session_factory = async_sessionmaker(

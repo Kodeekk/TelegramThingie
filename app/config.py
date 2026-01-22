@@ -2,9 +2,13 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from app.utils import Logger
+
 
 @dataclass(frozen=True)
 class Settings:
+    logger = Logger("Settings")
+
     database_url: str = "sqlite+aiosqlite:///telegram_bot.db"
     echo: bool = False
     webhook_base_url: str = ""
@@ -27,7 +31,13 @@ class Settings:
         def parse_bool(value: Optional[str], default: bool) -> bool:
             if value is None:
                 return default
-            return value.strip().lower() in {"1", "true", "yes", "y"}
+            if value.strip().lower() in ("1", "true", "yes", "y"):
+                return True
+            elif value.strip().lower() in ("0", "false", "no", "n"):
+                return False
+            else:
+                cls.logger.error("Failed to parse boolean value. Using default value as fallback variant.")
+                return default
 
         def parse_int(value: Optional[str], default: int) -> int:
             if value is None or not value.strip():
@@ -45,20 +55,17 @@ class Settings:
         def parse_manager_ids(value: Optional[str]) -> List[List[str]]:
             if not value or not value.strip():
                 return []
-            
-            # Пытаемся распарсить формат [[123,321], [555,444]] или [123,321], [555,444]
-            # Если формат простой "123,321", то это будет один список [[123,321]]
-            
+
             result = []
             import re
-            # Ищем содержимое внутри квадратных скобок
+            # getting insides of square brackets
             groups = re.findall(r'\[(.*?)\]', value)
             if groups:
                 for group in groups:
                     ids = [i.strip() for i in group.split(',') if i.strip()]
                     result.append(ids)
             else:
-                # Если скобок нет, считаем что это один список для всех (или для первого)
+                #if there is no brackets, using that as a single array for all the bots
                 ids = [i.strip() for i in value.split(',') if i.strip()]
                 if ids:
                     result.append(ids)
@@ -73,8 +80,6 @@ class Settings:
 
         manager_ids_raw = os.getenv("MANAGER_IDS")
         manager_ids = parse_manager_ids(manager_ids_raw)
-        if not manager_ids:
-            manager_ids = [["741343652"]] # Default from old code
 
         return cls(
             database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///telegram_bot.db"),

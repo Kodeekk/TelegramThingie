@@ -6,9 +6,13 @@ import httpx
 
 from app.services.session_service import SessionService
 from app.channels.telegram.client import TelegramClient
+from app.utils import Logger
 
 
 class TelegramBot:
+
+    logger = Logger("TelegramBot")
+
     def __init__(
         self,
         client: TelegramClient,
@@ -30,7 +34,6 @@ class TelegramBot:
         reply_markup: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if session_id is None:
-            # Попробуем найти активную сессию для этого chat_id
             active_session = await self.session_service.get_active_session_by_chat_id(
                 self.bot_id, chat_id
             )
@@ -97,7 +100,7 @@ class TelegramBot:
         try:
             return await self.client.get_updates(offset=offset)
         except Exception as e:
-            print(f"[Telegram] Error getting updates: {e}")
+            self.logger.info(f"Error getting updates: {e}")
             return {"ok": False, "result": []}
 
     async def handle_update(self, update: Dict[str, Any]) -> None:
@@ -156,7 +159,6 @@ class TelegramBot:
             active_session.chat_id, "Сессия завершена менеджером."
         )
 
-        # Проверяем очередь
         next_session = await self.session_service.get_next_waiting_session(self.bot_id)
         if next_session:
             keyboard = {
@@ -187,7 +189,6 @@ class TelegramBot:
             await self._handle_client_start(chat_id, user_info)
             return
 
-        # Обычное сообщение от клиента
         active_session = await self.session_service.get_active_session_by_chat_id(
             self.bot_id, chat_id
         )
@@ -195,7 +196,6 @@ class TelegramBot:
             await self.client.send_message(chat_id, "Нажмите /start чтобы начать сессию.")
             return
 
-        # Сохраняем сообщение в базу
         sender_name = user_info.get("username") or user_info.get("first_name") or "user"
         await self.session_service.add_message_to_session(
             session_id=active_session.session_id,
@@ -234,14 +234,13 @@ class TelegramBot:
             self.bot_id, chat_id
         )
 
-        # Ищем свободного менеджера
         free_managers = await self.session_service.get_free_managers(
             self.bot_id, self.manager_ids
         )
 
         if free_managers:
             target_manager = random.choice(free_managers)
-            # Уведомляем менеджера
+            #notifying manager
             keyboard = {
                 "inline_keyboard": [
                     [
@@ -285,7 +284,7 @@ class TelegramBot:
                     "Вы приняли сессию. Теперь вы можете общаться с клиентом. Для завершения используйте /close",
                 )
 
-                # Уведомляем клиента
+                #notifying client
                 session_data = await self.session_service.get_session_messages(session_id)
                 if session_data:
                     client_chat_id = session_data["chat_id"]
