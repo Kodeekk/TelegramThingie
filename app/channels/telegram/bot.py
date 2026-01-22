@@ -120,137 +120,148 @@ class TelegramBot:
             "user_id": user_id,
         }
 
-        # Если это менеджер
         if user_id in self.manager_ids:
-            if message_text == "/close":
-                active_session = (
-                    await self.session_service.get_active_session_by_manager_id(
-                        self.bot_id, user_id
-                    )
-                )
-                if active_session:
-                    await self.session_service.close_session(active_session.session_id)
-                    await self.client.send_message(user_id, "Сессия закрыта.")
-                    await self.client.send_message(
-                        active_session.chat_id, "Сессия завершена менеджером."
-                    )
+            await self._handle_manager_message(user_id, message_text)
+        else:
+            await self._handle_client_update(chat_id, message_text, user_info, telegram_msg_id, message)
 
-                    # Проверяем очередь
-                    next_session = await self.session_service.get_next_waiting_session(self.bot_id)
-                    if next_session:
-                        keyboard = {
-                            "inline_keyboard": [
-                                [
-                                    {
-                                        "text": "Принять",
-                                        "callback_data": f"accept_session_{next_session.session_id}",
-                                    }
-                                ]
-                            ]
-                        }
-                        await self.client.send_message(
-                            user_id,
-                            "В очереди есть клиент. Хотите принять?",
-                            reply_markup=keyboard
-                        )
-                else:
-                    await self.client.send_message(user_id, "У вас нет активных сессий.")
-                return
+    async def _handle_manager_message(self, user_id: str, message_text: str) -> None:
+        if message_text == "/close":
+            await self._close_manager_session(user_id)
+            return
 
-            active_session = await self.session_service.get_active_session_by_manager_id(
+        active_session = await self.session_service.get_active_session_by_manager_id(
+            self.bot_id, user_id
+        )
+        if active_session:
+            await self.send_message(
+                active_session.chat_id,
+                message_text,
+                session_id=active_session.session_id,
+            )
+
+    async def _close_manager_session(self, user_id: str) -> None:
+        active_session = (
+            await self.session_service.get_active_session_by_manager_id(
                 self.bot_id, user_id
             )
-            if active_session:
-                # Пересылаем сообщение клиенту
-                await self.send_message(
-                    active_session.chat_id,
-                    message_text,
-                    session_id=active_session.session_id,
-                )
-                return
-            else:
-                # Если менеджер написал что-то кроме /close и у него нет активной сессии,
-                # возможно он хочет ответить на какое-то старое сообщение или просто так.
-                # В данном простом диалоге - игнорируем или подсказываем.
-                pass
+        )
+        if not active_session:
+            await self.client.send_message(user_id, "У вас нет активных сессий.")
+            return
 
-        # Если это клиент
-        if message_text == "/start":
-            session = await self.session_service.get_active_session_by_chat_id(
-                self.bot_id, chat_id
+        await self.session_service.close_session(active_session.session_id)
+        await self.client.send_message(user_id, "Сессия закрыта.")
+        await self.client.send_message(
+            active_session.chat_id, "Сессия завершена менеджером."
+        )
+
+        # Проверяем очередь
+        next_session = await self.session_service.get_next_waiting_session(self.bot_id)
+        if next_session:
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Принять",
+                            "callback_data": f"accept_session_{next_session.session_id}",
+                        }
+                    ]
+                ]
+            }
+            await self.client.send_message(
+                user_id,
+                "В очереди есть клиент. Хотите принять?",
+                reply_markup=keyboard
             )
-            if not session:
-                session_id = await self.session_service.get_or_create_session(
-                    self.bot_id, chat_id
-                )
-                
-                # Ищем свободного менеджера
-                free_managers = await self.session_service.get_free_managers(
-                    self.bot_id, self.manager_ids
-                )
-                
-                if free_managers:
-                    target_manager = random.choice(free_managers)
-                    # Уведомляем менеджера
-                    keyboard = {
-                        "inline_keyboard": [
-                            [
-                                {
-                                    "text": "Принять",
-                                    "callback_data": f"accept_session_{session_id}",
-                                }
-                            ]
-                        ]
-                    }
-                    manager_text = f"Есть новый клиент: {user_info['first_name']}"
-                    if user_info["username"]:
-                        manager_text += f" (@{user_info['username']})"
-                    await self.client.send_message(
-                        target_manager, manager_text, reply_markup=keyboard
-                    )
-                
-                await self.send_message(
-                    chat_id, "Ожидайте менеджера...", session_id=session_id
-                )
-            else:
-                await self.send_message(
-                    chat_id,
-                    "Вы уже ожидаете менеджера или находитесь в активной сессии.",
-                    session_id=session.session_id,
-                )
+
+    async def _handle_client_update(
+        self,
+        chat_id: str,
+        message_text: str,
+        user_info: Dict[str, Any],
+        telegram_msg_id: str,
+        raw_message: Dict[str, Any]
+    ) -> None:
+        if message_text == "/start":
+            await self._handle_client_start(chat_id, user_info)
             return
 
         # Обычное сообщение от клиента
         active_session = await self.session_service.get_active_session_by_chat_id(
             self.bot_id, chat_id
         )
-        if active_session:
-            # Сохраняем сообщение в базу
-            await self.session_service.add_message_to_session(
-                session_id=active_session.session_id,
-                text=message_text,
-                message_type="incoming",
-                sender=user_info.get("username")
-                or user_info.get("first_name")
-                or "user",
-                telegram_message_id=telegram_msg_id,
-                telegram_response=message,
-                status="success",
+        if not active_session:
+            await self.client.send_message(chat_id, "Нажмите /start чтобы начать сессию.")
+            return
+
+        # Сохраняем сообщение в базу
+        sender_name = user_info.get("username") or user_info.get("first_name") or "user"
+        await self.session_service.add_message_to_session(
+            session_id=active_session.session_id,
+            text=message_text,
+            message_type="incoming",
+            sender=sender_name,
+            telegram_message_id=telegram_msg_id,
+            telegram_response=raw_message,
+            status="success",
+        )
+
+        if active_session.status == "active":
+            username = user_info.get("username")
+            display_name = f"@{username}" if username else user_info.get("first_name") or "user"
+            await self.client.send_message(
+                active_session.manager_id, f"[{display_name}]: {message_text}"
+            )
+        else:
+            await self.client.send_message(
+                chat_id, "Менеджер еще не подключился. Пожалуйста, подождите."
             )
 
-            if active_session.status == "active":
-                # Пересылаем менеджеру
-                username = user_info.get("username")
-                display_name = f"@{username}" if username else user_info.get("first_name") or "user"
-                await self.client.send_message(
-                    active_session.manager_id, f"[{display_name}]: {message_text}"
-                )
-            else:
-                await self.client.send_message(
-                    chat_id, "Менеджер еще не подключился. Пожалуйста, подождите."
-                )
-        else:
-            await self.client.send_message(chat_id, "Нажмите /start чтобы начать сессию.")
+    async def _handle_client_start(self, chat_id: str, user_info: Dict[str, Any]) -> None:
+        session = await self.session_service.get_active_session_by_chat_id(
+            self.bot_id, chat_id
+        )
+        if session:
+            await self.send_message(
+                chat_id,
+                "Вы уже ожидаете менеджера или находитесь в активной сессии.",
+                session_id=session.session_id,
+            )
+            return
+
+        session_id = await self.session_service.get_or_create_session(
+            self.bot_id, chat_id
+        )
+
+        # Ищем свободного менеджера
+        free_managers = await self.session_service.get_free_managers(
+            self.bot_id, self.manager_ids
+        )
+
+        if free_managers:
+            target_manager = random.choice(free_managers)
+            # Уведомляем менеджера
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Принять",
+                            "callback_data": f"accept_session_{session_id}",
+                        }
+                    ]
+                ]
+            }
+            manager_text = f"Есть новый клиент: {user_info['first_name']}"
+            if user_info["username"]:
+                manager_text += f" (@{user_info['username']})"
+            await self.client.send_message(
+                target_manager, manager_text, reply_markup=keyboard
+            )
+
+        await self.send_message(
+            chat_id, "Ожидайте менеджера...", session_id=session_id
+        )
 
     async def _handle_callback_query(self, callback_query: Dict[str, Any]) -> None:
         data = callback_query.get("data", "")
