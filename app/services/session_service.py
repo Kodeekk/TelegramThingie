@@ -75,6 +75,8 @@ class SessionService:
         self, bot_id: str, manager_ids: List[str]
     ) -> List[str]:
         """Find managers from the list who don't have active sessions in this bot."""
+        if not manager_ids:
+            return []
         async with self.session_factory() as db_session:
             result = await db_session.execute(
                 select(Session.manager_id)
@@ -84,6 +86,17 @@ class SessionService:
             )
             busy_managers = {row[0] for row in result.all() if row[0]}
             return [m for m in manager_ids if m not in busy_managers]
+
+    async def get_next_waiting_session(self, bot_id: str) -> Optional[Session]:
+        """Get the oldest waiting session for a bot."""
+        async with self.session_factory() as db_session:
+            result = await db_session.execute(
+                select(Session)
+                .where(Session.bot_id == bot_id)
+                .where(Session.status == "waiting")
+                .order_by(Session.created_at.asc())
+            )
+            return result.scalar_one_or_none()
 
     async def accept_session(self, session_id: int, manager_id: str) -> bool:
         async with self.session_factory() as db_session:

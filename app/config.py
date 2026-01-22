@@ -16,7 +16,7 @@ class Settings:
     webhook_allowed_updates: List[str] = field(
         default_factory=lambda: ["message", "callback_query"]
     )
-    manager_ids: List[str] = field(default_factory=lambda: ["741343652"])
+    manager_ids: List[List[str]] = field(default_factory=list)
     webhook_url: Optional[str] = None
     bot_tokens: List[str] = field(default_factory=list)
     bot_names: List[str] = field(default_factory=list)
@@ -42,12 +42,39 @@ class Settings:
                 return default
             return [item.strip() for item in value.split(",") if item.strip()]
 
+        def parse_manager_ids(value: Optional[str]) -> List[List[str]]:
+            if not value or not value.strip():
+                return []
+            
+            # Пытаемся распарсить формат [[123,321], [555,444]] или [123,321], [555,444]
+            # Если формат простой "123,321", то это будет один список [[123,321]]
+            
+            result = []
+            import re
+            # Ищем содержимое внутри квадратных скобок
+            groups = re.findall(r'\[(.*?)\]', value)
+            if groups:
+                for group in groups:
+                    ids = [i.strip() for i in group.split(',') if i.strip()]
+                    result.append(ids)
+            else:
+                # Если скобок нет, считаем что это один список для всех (или для первого)
+                ids = [i.strip() for i in value.split(',') if i.strip()]
+                if ids:
+                    result.append(ids)
+            return result
+
         bot_tokens = parse_list(os.getenv("BOT_TOKENS"), [])
         bot_names = parse_list(os.getenv("BOT_NAMES"), [])
         if not bot_tokens and os.getenv("BOT_TOKEN"):
             bot_tokens = [os.getenv("BOT_TOKEN")]
             if not bot_names:
                 bot_names = ["default"]
+
+        manager_ids_raw = os.getenv("MANAGER_IDS")
+        manager_ids = parse_manager_ids(manager_ids_raw)
+        if not manager_ids:
+            manager_ids = [["741343652"]] # Default from old code
 
         return cls(
             database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///telegram_bot.db"),
@@ -63,7 +90,7 @@ class Settings:
             webhook_allowed_updates=parse_list(
                 os.getenv("WEBHOOK_ALLOWED_UPDATES"), ["message", "callback_query"]
             ),
-            manager_ids=parse_list(os.getenv("MANAGER_IDS"), ["741343652"]),
+            manager_ids=manager_ids,
             webhook_url=os.getenv("WEBHOOK_URL"),
             bot_tokens=bot_tokens,
             bot_names=bot_names,

@@ -134,6 +134,25 @@ class TelegramBot:
                     await self.client.send_message(
                         active_session.chat_id, "Сессия завершена менеджером."
                     )
+
+                    # Проверяем очередь
+                    next_session = await self.session_service.get_next_waiting_session(self.bot_id)
+                    if next_session:
+                        keyboard = {
+                            "inline_keyboard": [
+                                [
+                                    {
+                                        "text": "Принять",
+                                        "callback_data": f"accept_session_{next_session.session_id}",
+                                    }
+                                ]
+                            ]
+                        }
+                        await self.client.send_message(
+                            user_id,
+                            f"В очереди есть клиент. Хотите принять?",
+                            reply_markup=keyboard
+                        )
                 else:
                     await self.client.send_message(user_id, "У вас нет активных сессий.")
                 return
@@ -189,15 +208,10 @@ class TelegramBot:
                     await self.client.send_message(
                         target_manager, manager_text, reply_markup=keyboard
                     )
-                    await self.send_message(
-                        chat_id, "Ожидайте менеджера...", session_id=session_id
-                    )
-                else:
-                    await self.send_message(
-                        chat_id, "К сожалению, сейчас все менеджеры заняты. Пожалуйста, попробуйте позже.", session_id=session_id
-                    )
-                    # Можно было бы оставить в очереди, но по заданию "give client a free manager"
-                    # и если его нет, то мы уведомляем клиента.
+                
+                await self.send_message(
+                    chat_id, "Ожидайте менеджера...", session_id=session_id
+                )
             else:
                 await self.send_message(
                     chat_id,
