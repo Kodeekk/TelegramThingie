@@ -26,7 +26,7 @@ def _normalize_path(path: str) -> str:
 
 def load_bot_configs(settings: Settings) -> List[BotConfig]:
     configs: List[BotConfig] = []
-
+=
     if not settings.bot_tokens:
         return configs
 

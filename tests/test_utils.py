@@ -11,9 +11,7 @@ class TestUtils(unittest.TestCase):
                 return logger.format_info("test")
         
         self.assertEqual(TestClass().get_log(), "[TestClass] INFO: test")
-        # When called from within TestUtils, it should be [TestUtils]
         self.assertEqual(logger.format_info("test"), "[TestUtils] INFO: test")
-        # When called from a global function, it should be [App]
         self.assertEqual(log_globally(), "[App] INFO: test")
 
     def test_logger_levels(self):

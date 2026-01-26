@@ -21,7 +21,6 @@ class Logger:
         elif level_name == "PROD":
             self.level = self.INFO
         else:
-            # Fallback for standard level names or unexpected strings
             levels = {
                 "DEBUG": self.DEBUG,
                 "INFO": self.INFO,
@@ -32,9 +31,6 @@ class Logger:
 
     def _get_caller_name(self) -> str:
         stack = inspect.stack()
-        # stack[0] is _get_caller_name
-        # stack[1] is the logger method (info, debug, etc.)
-        # We look for the first frame that has 'self' and is not the Logger itself
         for frame_info in stack[2:]:
             frame = frame_info.frame
             if 'self' in frame.f_locals:
@@ -42,9 +38,6 @@ class Logger:
                 cls_name = instance.__class__.__name__
                 if cls_name != "Logger":
                     return cls_name
-            # If we reach a frame that is not a method (no 'self'),
-            # we can't reliably determine a "class name", so we stop and return default.
-            # This prevents picking up 'self' from much higher in the stack (like a TestRunner).
             else:
                 break
         return self.name

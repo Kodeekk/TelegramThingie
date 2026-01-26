@@ -348,7 +348,6 @@ class TelegramBot:
                     text="Не удалось принять сессию (возможно, уже принята)",
                 )
         elif data == "close_session":
-            # Keeping it for backward compatibility if any old messages with inline buttons exist
             await self.client.answer_callback_query(callback_query["id"])
             await self._close_manager_session(manager_id)
 
