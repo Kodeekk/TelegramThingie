@@ -251,3 +251,35 @@ class SessionService:
                 }
                 for s in sessions
             ]
+
+    async def get_manager_messages(
+        self, manager_id: str, bot_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get all messages from all sessions assigned to a specific manager."""
+        async with self.session_factory() as db_session:
+            query = (
+                select(Message)
+                .join(Session, Message.session_id == Session.session_id)
+                .where(Session.manager_id == manager_id)
+                .order_by(Message.created_at.asc())
+            )
+
+            if bot_id:
+                query = query.where(Session.bot_id == bot_id)
+
+            result = await db_session.execute(query)
+            messages = result.scalars().all()
+
+            return [
+                {
+                    "message_id": msg.message_id,
+                    "session_id": msg.session_id,
+                    "type": msg.message_type,
+                    "sender": msg.sender,
+                    "text": msg.text,
+                    "status": msg.status,
+                    "created_at": msg.created_at.isoformat(),
+                    "telegram_message_id": msg.telegram_message_id,
+                }
+                for msg in messages
+            ]
