@@ -130,7 +130,7 @@ class TelegramBot:
 
         if user_id in [str(mid) for mid in self.manager_ids]:
             self.logger.info(f"Manager message from {user_id}: {message_text}")
-            await self._handle_manager_message(user_id, message_text, user_info)
+            await self._handle_manager_message(user_id, message_text, user_info, telegram_msg_id)
         else:
             self.logger.info(f"Client message from {user_id} ({chat_id}): {message_text}")
             await self._handle_client_update(
@@ -149,9 +149,14 @@ class TelegramBot:
                     await self.send_message(chat_id, response)
 
     async def _handle_manager_message(
-        self, user_id: str, message_text: str, manager_info: Dict[str, Any]
+        self, user_id: str, message_text: str, manager_info: Dict[str, Any], message_id: Optional[str] = None
     ) -> None:
-        if message_text == "/close":
+        if message_text in ["/close", "Завершить диалог"]:
+            if message_text == "Завершить диалог" and message_id:
+                try:
+                    await self.client.delete_message(user_id, int(message_id))
+                except Exception as e:
+                    self.logger.error(f"Failed to delete 'Завершить диалог' message: {e}")
             await self._close_manager_session(user_id)
             return
 
@@ -183,7 +188,9 @@ class TelegramBot:
             return
 
         await self.session_service.close_session(active_session.session_id)
-        await self.client.send_message(user_id, "Сессия закрыта.")
+        
+        keyboard_remove = {"remove_keyboard": True}
+        await self.client.send_message(user_id, "Сессия закрыта.", reply_markup=keyboard_remove)
         await self.client.send_message(
             active_session.chat_id, "Сессия завершена менеджером."
         )
@@ -239,8 +246,10 @@ class TelegramBot:
         if active_session.status == "active":
             username = user_info.get("username")
             display_name = f"@{username}" if username else user_info.get("first_name") or "user"
+            
             await self.client.send_message(
-                active_session.manager_id, f"[{display_name}]: {message_text}"
+                active_session.manager_id, 
+                f"[{display_name}]: {message_text}"
             )
         else:
             await self.client.send_message(
@@ -293,24 +302,35 @@ class TelegramBot:
 
     async def _handle_callback_query(self, callback_query: Dict[str, Any]) -> None:
         data = callback_query.get("data", "")
+        manager_id = str(callback_query["from"]["id"])
+
+        if manager_id not in self.manager_ids:
+            await self.client.answer_callback_query(
+                callback_query["id"], text="Вы не являетесь менеджером"
+            )
+            return
+
         if data.startswith("accept_session_"):
             session_id = int(data.split("_")[-1])
-            manager_id = str(callback_query["from"]["id"])
-
-            if manager_id not in self.manager_ids:
-                await self.client.answer_callback_query(
-                    callback_query["id"], text="Вы не являетесь менеджером"
-                )
-                return
 
             success = await self.session_service.accept_session(session_id, manager_id)
             if success:
                 await self.client.answer_callback_query(
                     callback_query["id"], text="Сессия принята"
                 )
+                
+                keyboard = {
+                    "keyboard": [
+                        [{"text": "Завершить диалог"}]
+                    ],
+                    "resize_keyboard": True,
+                    "persistent": True
+                }
+                
                 await self.client.send_message(
                     manager_id,
-                    "Вы приняли сессию. Теперь вы можете общаться с клиентом. Для завершения используйте /close",
+                    "Вы приняли сессию. Теперь вы можете общаться с клиентом. Для завершения используйте кнопку ниже или команду /close.",
+                    reply_markup=keyboard
                 )
 
                 #notifying client
@@ -327,4 +347,8 @@ class TelegramBot:
                     callback_query["id"],
                     text="Не удалось принять сессию (возможно, уже принята)",
                 )
+        elif data == "close_session":
+            # Keeping it for backward compatibility if any old messages with inline buttons exist
+            await self.client.answer_callback_query(callback_query["id"])
+            await self._close_manager_session(manager_id)
 
