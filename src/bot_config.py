@@ -30,7 +30,6 @@ def load_bot_configs(settings: Settings) -> List[BotConfig]:
     if not settings.bot_tokens:
         return configs
 
-    # If it's a single bot and BOT_TOKEN was used, we might want to use WEBHOOK_PATH
     if len(settings.bot_tokens) == 1 and (not settings.bot_names or settings.bot_names[0] == "default"):
         configs.append(
             BotConfig(

@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -11,6 +12,7 @@ from src.config import Settings
 from src.db.session import Database
 from src.services.session_service import SessionService
 from src.webhook_server import WebhookServer
+from src.utils.logger import logger
 
 def _validate_config(bots, settings: Settings) -> bool:
     if not bots:
@@ -91,7 +93,6 @@ async def _register_bot(
 async def main() -> None:
     load_dotenv(find_dotenv())
     settings = Settings.from_env()
-    from src.utils.logger import logger
     logger.set_level(settings.env)
 
     bots = load_bot_configs(settings)
@@ -139,7 +140,6 @@ async def main() -> None:
         WebhookServer.logger.error(str(e))
     except Exception as e:
         WebhookServer.logger.error(f"Unexpected error in main: {e}")
-        import traceback
         WebhookServer.logger.debug(traceback.format_exc())
     finally:
         if server:

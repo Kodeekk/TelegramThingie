@@ -7,6 +7,9 @@ class Logger:
     WARNING = 30
     ERROR = 40
 
+    def __init__(self):
+        self.level = None
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(Logger, cls).__new__(cls)
@@ -62,7 +65,5 @@ class Logger:
             print(f"[{self._get_caller_name()}] WARNING :{msg}")
     def format_warning(self, msg: str) -> str:
         return f"[{self._get_caller_name()}] WARNING: {msg}"
-
-
 
 logger = Logger()

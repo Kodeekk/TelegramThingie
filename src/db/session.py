@@ -4,7 +4,6 @@ from src.db.base import Base
 from src.utils.logger import logger
 
 class Database:
-
     logger = logger
 
     def __init__(self, database_url: str, echo: bool = False) -> None:

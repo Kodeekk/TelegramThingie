@@ -1,3 +1,4 @@
+import re
 import os
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -58,15 +59,12 @@ class Settings:
                 return []
 
             result = []
-            import re
-            # getting insides of square brackets
             groups = re.findall(r'\[(.*?)\]', value)
             if groups:
                 for group in groups:
                     ids = [i.strip() for i in group.split(',') if i.strip()]
                     result.append(ids)
             else:
-                #if there is no brackets, using that as a single array for all the bots
                 ids = [i.strip() for i in value.split(',') if i.strip()]
                 if ids:
                     result.append(ids)

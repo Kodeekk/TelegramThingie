@@ -41,13 +41,13 @@ class Message(Base):
         Integer, ForeignKey("sessions.session_id"), nullable=False, index=True
     )
 
-    message_type = Column(String(20), nullable=False)  # 'incoming' or 'outgoing'
+    message_type = Column(String(20), nullable=False)
     sender = Column(String(50), nullable=True)
     text = Column(Text, nullable=False)
 
     telegram_message_id = Column(String(50), nullable=True)
 
-    status = Column(String(20), nullable=False)  # 'success' or 'failed'
+    status = Column(String(20), nullable=False)
     error_message = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
